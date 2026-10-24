@@ -1,0 +1,64 @@
+clc;
+% 1. Create coordinate grid
+x = -5000:100:5000;
+y = -5000:100:5000;
+[X, Y] = meshgrid(x, y);
+
+% 2. Define three hypothetical antennas (metres)
+antenna_x = [-2000, 0, 2000];
+antenna_y = [0, 1500, 0];
+
+% 3. Define signal parameters
+Pt = 30;       % Transmitted power (dBm)
+Gt = 2;        % Transmitter antenna gain (dB)
+Gr = 0;        % Receiver antenna gain (dB)
+L = 2;         % Additional losses (dB)
+PL0 = 40;      % Path loss at reference distance (dB)
+d0 = 1;        % Reference distance (m)
+n = 3;         % Path-loss exponent
+
+% 4. Calculate strongest received signal
+Pr = -Inf(size(X));
+
+for k = 1:length(antenna_x)
+
+    % Euclidean distance
+    D = sqrt((X - antenna_x(k)).^2 + ...
+             (Y - antenna_y(k)).^2);
+
+    D(D < d0) = d0;
+
+    % Log-distance path-loss model
+    PL = PL0 + 10*n*log10(D/d0);
+
+    % Link-budget equation
+    Pr_k = Pt + Gt + Gr - PL - L;
+
+    % Select strongest signal at each point
+    Pr = max(Pr, Pr_k);
+
+end
+
+% 5. Plot signal-strength contour
+figure;
+contourf(X/1000, Y/1000, Pr, 25, ...
+         'LineColor', 'none');
+
+colorbar;
+xlabel('X coordinate (km)');
+ylabel('Y coordinate (km)');
+title('Predicted Signal-Strength Contour');
+axis equal tight;
+grid on;
+
+% 6. Calculate coverage percentage
+Pmin = -90;    % Assumed minimum signal strength (dBm)
+
+covered = Pr >= Pmin;
+
+coverage = 100 * sum(covered(:)) / numel(covered);
+
+fprintf('Minimum signal threshold: %.1f dBm\n', Pmin);
+fprintf('Grid points covered: %d\n', sum(covered(:)));
+fprintf('Total grid points: %d\n', numel(covered));
+fprintf('Illustrative grid coverage: %.2f%%\n', coverage);
