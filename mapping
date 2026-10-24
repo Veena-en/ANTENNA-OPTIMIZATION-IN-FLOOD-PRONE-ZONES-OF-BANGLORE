@@ -1,0 +1,311 @@
+clc;
+clear;
+close all;
+
+% ==========================================================
+% FLOOD-RISK MAP - GNU OCTAVE
+% Single script; no helper functions
+% ==========================================================
+
+WEST  = 77.490;
+EAST  = 77.710;
+SOUTH = 12.850;
+NORTH = 13.130;
+
+% ----------------------------------------------------------
+% CREATE FIGURE
+% ----------------------------------------------------------
+
+figure(1);
+clf;
+set(gcf, 'Color', 'w', 'Position', [100 100 1100 800]);
+hold on;
+grid on;
+box on;
+
+% ----------------------------------------------------------
+% 1. FLOOD-RELATED ZONES FROM GEOJSON
+% ----------------------------------------------------------
+
+geoFile = 'bengaluru_flood_zones(1).geojson';
+
+if exist(geoFile, 'file') ~= 2
+    geoFile = 'bengaluru_flood_zones.geojson';
+end
+
+if exist(geoFile, 'file') ~= 2
+    error('Flood-zone GeoJSON file not found in the current folder.');
+end
+
+geo = jsondecode(fileread(geoFile));
+
+zoneHandle = patch(NaN, NaN, [1.0 0.72 0.65], ...
+    'EdgeColor', [0.75 0.15 0.10], ...
+    'LineWidth', 1.2, ...
+    'FaceAlpha', 0.40);
+
+zoneCount = 0;
+
+for k = 1:numel(geo.features)
+
+    geom = geo.features(k).geometry;
+
+    if isempty(geom)
+        continue;
+    end
+
+    if strcmp(geom.type, 'Polygon')
+        polygons = {geom.coordinates};
+    elseif strcmp(geom.type, 'MultiPolygon')
+        polygons = geom.coordinates;
+    else
+        continue;
+    end
+
+    for p = 1:numel(polygons)
+
+        poly = polygons{p};
+
+        if iscell(poly)
+            rings = poly;
+        else
+            rings = {poly};
+        end
+
+        for r = 1:numel(rings)
+
+            coords = rings{r};
+
+            if isempty(coords)
+                continue;
+            end
+
+            coords = reshape(coords, [], 2);
+
+            lon = coords(:,1);
+            lat = coords(:,2);
+
+            % Skip polygons completely outside study bounds
+            if max(lon) < WEST || min(lon) > EAST || ...
+               max(lat) < SOUTH || min(lat) > NORTH
+                continue;
+            end
+
+            patch(lon, lat, [1.0 0.72 0.65], ...
+                'EdgeColor', [0.75 0.15 0.10], ...
+                'LineWidth', 1.2, ...
+                'FaceAlpha', 0.40);
+
+            zoneCount = zoneCount + 1;
+        end
+    end
+end
+
+% ----------------------------------------------------------
+% 2. LOW-LYING LOCATIONS FROM KML
+% ----------------------------------------------------------
+
+lowFile = '8e87a2fc-e014-4c6e-81f1-d5cb4db57a46.kml';
+
+lowLon = [];
+lowLat = [];
+
+if exist(lowFile, 'file') == 2
+
+    txt = fileread(lowFile);
+    blocks = regexp(txt, ...
+        '<coordinates[^>]*>([\s\S]*?)</coordinates>', 'tokens');
+
+    for b = 1:numel(blocks)
+
+        entries = regexp(strtrim(blocks{b}{1}), '\s+', 'split');
+
+        for j = 1:numel(entries)
+
+            p = strsplit(strtrim(entries{j}), ',');
+
+            if numel(p) < 2
+                continue;
+            end
+
+            x = str2double(p{1});
+            y = str2double(p{2});
+
+            if isfinite(x) && isfinite(y) && ...
+               x >= WEST && x <= EAST && ...
+               y >= SOUTH && y <= NORTH
+
+                lowLon(end+1) = x;
+                lowLat(end+1) = y;
+            end
+        end
+    end
+
+else
+    fprintf('WARNING: Low-lying KML not found.\n');
+end
+
+lowHandle = plot(lowLon, lowLat, 'bo', ...
+    'MarkerFaceColor', 'b', ...
+    'MarkerSize', 5, ...
+    'LineStyle', 'none');
+
+% ----------------------------------------------------------
+% 3. FLOOD-PRONE LOCATIONS FROM KML
+% ----------------------------------------------------------
+
+proneFile = '00fb1229-dcfd-4f59-813f-885e0c629add (1).kml';
+
+proneLon = [];
+proneLat = [];
+
+if exist(proneFile, 'file') == 2
+
+    txt = fileread(proneFile);
+    blocks = regexp(txt, ...
+        '<coordinates[^>]*>([\s\S]*?)</coordinates>', 'tokens');
+
+    for b = 1:numel(blocks)
+
+        entries = regexp(strtrim(blocks{b}{1}), '\s+', 'split');
+
+        for j = 1:numel(entries)
+
+            p = strsplit(strtrim(entries{j}), ',');
+
+            if numel(p) < 2
+                continue;
+            end
+
+            x = str2double(p{1});
+            y = str2double(p{2});
+
+            if isfinite(x) && isfinite(y) && ...
+               x >= WEST && x <= EAST && ...
+               y >= SOUTH && y <= NORTH
+
+                proneLon(end+1) = x;
+                proneLat(end+1) = y;
+            end
+        end
+    end
+
+else
+    fprintf('WARNING: Flood-prone KML not found.\n');
+end
+
+proneHandle = plot(proneLon, proneLat, 'r^', ...
+    'MarkerFaceColor', 'r', ...
+    'MarkerSize', 6, ...
+    'LineStyle', 'none');
+
+% ----------------------------------------------------------
+% 4. FLOOD-VULNERABLE LOCATIONS FROM KML
+% ----------------------------------------------------------
+
+vulnFile = '6b3c63b0-f461-4e9c-a2c2-006f734c5b41 (1).kml';
+
+vulnLon = [];
+vulnLat = [];
+
+if exist(vulnFile, 'file') == 2
+
+    txt = fileread(vulnFile);
+    blocks = regexp(txt, ...
+        '<coordinates[^>]*>([\s\S]*?)</coordinates>', 'tokens');
+
+    for b = 1:numel(blocks)
+
+        entries = regexp(strtrim(blocks{b}{1}), '\s+', 'split');
+
+        for j = 1:numel(entries)
+
+            p = strsplit(strtrim(entries{j}), ',');
+
+            if numel(p) < 2
+                continue;
+            end
+
+            x = str2double(p{1});
+            y = str2double(p{2});
+
+            if isfinite(x) && isfinite(y) && ...
+               x >= WEST && x <= EAST && ...
+               y >= SOUTH && y <= NORTH
+
+                vulnLon(end+1) = x;
+                vulnLat(end+1) = y;
+            end
+        end
+    end
+
+else
+    fprintf('WARNING: Flood-vulnerable KML not found.\n');
+end
+
+vulnHandle = plot(vulnLon, vulnLat, 'ms', ...
+    'MarkerFaceColor', 'm', ...
+    'MarkerSize', 5, ...
+    'LineStyle', 'none');
+
+% ----------------------------------------------------------
+% 5. MAP FORMATTING
+% ----------------------------------------------------------
+
+xlim([WEST EAST]);
+ylim([SOUTH NORTH]);
+
+xlabel('Longitude (degrees E)');
+ylabel('Latitude (degrees N)');
+
+title('Flood-Related Zones and Vulnerable Locations');
+
+legend([zoneHandle, proneHandle, vulnHandle, lowHandle], ...
+    {'Flood-related zones', ...
+     'Flood-prone locations', ...
+     'Flood-vulnerable locations', ...
+     'Low-lying locations'}, ...
+    'Location', 'eastoutside');
+
+axis equal;
+grid on;
+box on;
+set(gca, 'FontSize', 10);
+
+hold off;
+
+% ----------------------------------------------------------
+% 6. SAVE MAP AND PRINT SUMMARY
+% ----------------------------------------------------------
+
+print('final_flood_risk_map.png', '-dpng', '-r300');
+
+fprintf('\n========== MAP SUMMARY ==========\n');
+fprintf('Flood-zone polygon rings plotted: %d\n', zoneCount);
+fprintf('Low-lying coordinates: %d\n', numel(lowLon));
+fprintf('Flood-prone coordinates: %d\n', numel(proneLon));
+fprintf('Flood-vulnerable coordinates: %d\n', numel(vulnLon));
+fprintf('Map saved as final_flood_risk_map.png\n');
+
+
+
+
+% ==========================================
+% STUDY-AREA BOUNDARY VALIDATION
+% ==========================================
+
+inside = vulnLon >= WEST & vulnLon <= EAST & ...
+         vulnLat >= SOUTH & vulnLat <= NORTH;
+
+outside = ~inside;
+
+fprintf('\n===== BOUNDARY VALIDATION =====\n');
+fprintf('Total vulnerable points loaded: %d\n', numel(vulnLon));
+fprintf('Points inside study area: %d\n', sum(inside));
+fprintf('Points outside study area: %d\n', sum(outside));
+
+if sum(outside) == 0
+    fprintf('All loaded vulnerable points are inside the study area.\n');
+else
+    fprintf('Some vulnerable points lie outside the study area.\n');
+end
